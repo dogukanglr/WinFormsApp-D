@@ -1,1 +1,122 @@
+SELECT TOP (1000) [CourseID]
+      ,[CourseCode]
+      ,[CourseName]
+      ,[Description]
+  FROM [BLM-5225-Project-Mark-Db-MDG].[dbo].[Course]
+
+  SELECT TOP (1000) [StudentID]
+      ,[Name]
+      ,[Surname]
+      ,[DateOfBirth]
+      ,[Email]
+      ,[PhoneNumber]
+  FROM [BLM-5225-Project-Mark-Db-MDG].[dbo].[Student]
+
+  SELECT TOP (1000) [SectionID]
+      ,[CourseID]
+      ,[SectionNumber]
+      ,[Date]
+      ,[Teacher]
+  FROM [BLM-5225-Project-Mark-Db-MDG].[dbo].[Section]
+
+  SELECT TOP (1000) [ExamID]
+      ,[StudentID]
+      ,[CourseID]
+      ,[SectionID]
+      ,[ExamDate]
+      ,[Grade]
+  FROM [BLM-5225-Project-Mark-Db-MDG].[dbo].[ExamGrades]
+
+  SELECT TOP (1000) [TeacherID]
+      ,[FirstName]
+      ,[LastName]
+      ,[Email]
+      ,[Department]
+  FROM [BLM-5225-Project-Mark-Db-MDG].[dbo].[Teachers]
+
+CREATE TRIGGER SendGradeNotification
+ON ExamGrades
+AFTER INSERT
+AS
+BEGIN
+    DECLARE @StudentID INT, @Grade FLOAT;
+
+    SELECT @StudentID = inserted.StudentID, @Grade = inserted.Grade
+    FROM inserted;
+
+    IF @Grade >= 90
+    BEGIN
+        -- Bu öğrenci için özel bir mesaj gönderilebilir, burada örneğin bir print işlemi yapıyoruz
+        PRINT 'Tebrikler! Yüksek not aldınız.';
+    END
+    ELSE IF @Grade < 60
+    BEGIN
+        PRINT 'Notunuz düşük, lütfen ders çalışmaya özen gösterin.';
+    END
+END;
+
+-- View: Öğrenci Notları
+-- Bu view, öğrenci adı, soyadı, aldığı dersin adı, sınav tarihi ve sınav notunu içerir.
+CREATE VIEW StudentGrades AS
+SELECT s.Name, s.Surname, c.CourseName, eg.ExamDate, eg.Grade
+FROM Student s
+INNER JOIN ExamGrades eg ON s.StudentID = eg.StudentID
+INNER JOIN Course c ON eg.CourseID = c.CourseID;
+
+-- View: Ders İstatistikleri
+-- Bu view, her bir dersin adı, bu dersi alan öğrenci sayısı ve bu dersin ortalama sınav notunu gösterir.
+CREATE VIEW CourseStatistics AS
+SELECT c.CourseName, COUNT(eg.StudentID) AS NumberOfStudents, AVG(eg.Grade) AS AverageGrade
+FROM Course c
+LEFT JOIN ExamGrades eg ON c.CourseID = eg.CourseID
+GROUP BY c.CourseName;
+
+-- View: Öğrenci Ders İstatistikleri
+-- Bu view, her öğrencinin aldığı derslerin sayısını ve toplam sınav notlarını gösterir.
+CREATE VIEW StudentCourseStats AS
+SELECT s.StudentID, s.Name, s.Surname, COUNT(eg.CourseID) AS NumberOfCourses, SUM(eg.Grade) AS TotalGrades
+FROM Student s
+LEFT JOIN ExamGrades eg ON s.StudentID = eg.StudentID
+GROUP BY s.StudentID, s.Name, s.Surname;
+
+-- View: Öğretmen Ders Sayıları
+-- Bu view, her bir öğretmenin yönettiği derslerin sayısını gösterir.
+CREATE VIEW TeacherCourseCount AS
+SELECT t.TeacherID, t.FirstName, t.LastName, COUNT(s.SectionID) AS NumberOfSections
+FROM Teachers t
+LEFT JOIN Section s ON t.FirstName + ' ' + t.LastName = s.Teacher
+GROUP BY t.TeacherID, t.FirstName, t.LastName;
+
+-- View: En İyi Öğrenciler
+-- Bu view, öğrencileri sıralayarak en yüksek not alanları gösterir.
+CREATE VIEW TopStudents AS
+SELECT s.StudentID, s.Name, s.Surname, MAX(eg.Grade) AS HighestGrade
+FROM Student s
+INNER JOIN ExamGrades eg ON s.StudentID = eg.StudentID
+GROUP BY s.StudentID, s.Name, s.Surname;
+
+USE [BLM-5225-Project-Mark-Db-MDG]
+GO
+/****** Object:  StoredProcedure [dbo].[GetStudentExamGrades]    Script Date: 2.01.2024 20:38:24 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[GetStudentExamGrades]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT s.StudentID, s.Name, s.Surname, c.CourseCode, c.CourseName, sg.Grade
+    FROM [BLM-5225-Project-Mark-Db-MDG].[dbo].[Student] s
+    INNER JOIN [BLM-5225-Project-Mark-Db-MDG].[dbo].[ExamGrades] sg ON s.StudentID = sg.StudentID
+    INNER JOIN [BLM-5225-Project-Mark-Db-MDG].[dbo].[Section] sec ON sg.SectionID = sec.SectionID
+    INNER JOIN [BLM-5225-Project-Mark-Db-MDG].[dbo].[Course] c ON sg.CourseID = c.CourseID
+    WHERE sec.Date <= GETDATE() -- Örnek: Sınav tarihi bugünden önce olan sınavları getirir
+    ORDER BY s.StudentID;
+END;
+
+
+
+
 
